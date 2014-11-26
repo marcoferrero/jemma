@@ -36,6 +36,7 @@ import org.apache.http.conn.scheme.PlainSocketFactory;
 import org.apache.http.conn.scheme.Scheme;
 import org.apache.http.conn.scheme.SchemeRegistry;
 import org.apache.http.conn.ssl.SSLSocketFactory;
+import org.apache.http.conn.ssl.AllowAllHostnameVerifier;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.client.DefaultHttpClient;
@@ -84,7 +85,10 @@ public class RestClient {
 	private RestClient() {
 		SchemeRegistry schemeRegistry = new SchemeRegistry();
 		schemeRegistry.register(new Scheme("http", 80, PlainSocketFactory.getSocketFactory()));
-		schemeRegistry.register(new Scheme("https", 443, SSLSocketFactory.getSocketFactory()));
+		SSLSocketFactory sslSocketFactory = SSLSocketFactory.getSocketFactory();
+		// allow working with all hostname server (hostname verification default turned off)
+		sslSocketFactory.setHostnameVerifier(new AllowAllHostnameVerifier());
+		schemeRegistry.register(new Scheme("https", 443, sslSocketFactory ));
 
 		ThreadSafeClientConnManager connectionManager = new ThreadSafeClientConnManager(schemeRegistry);
 		// TODO: check for final values
