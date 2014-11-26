@@ -84,6 +84,7 @@ public class DataFreescale implements IDataLayer {
 	Boolean destroy = false;
 	ExecutorService executor = null;
 	private GalController gal = null;
+	private final int NUMBEROFRETRY = 5;
 
 	private GalController getGal() {
 		return gal;
@@ -165,7 +166,10 @@ public class DataFreescale implements IDataLayer {
 			public void run() {
 				while (!getDestroy()) {
 					try {
-						processAllRaw(getDataFromSerialComm().take());
+						ByteArrayObject z = null;
+						z = getDataFromSerialComm().take();
+						if (z.getArray() != null)
+							processAllRaw(z);
 					} catch (Exception e) {
 						LOG.error("Error on processAllRaw:" + e.getMessage());
 						e.printStackTrace();
@@ -852,6 +856,7 @@ public class DataFreescale implements IDataLayer {
 	private void apsmeSetConfirm(ByteArrayObject message) {
 		if (getGal().getPropertiesManager().getDebugEnabled())
 			LOG.info("Extracted APSME-SET.Confirm: " + message.ToHexString());
+
 		short status = (short) (message.getArray()[3] & 0xFF);
 		synchronized (getListLocker()) {
 			for (ParserLocker pl : getListLocker()) {
@@ -868,6 +873,7 @@ public class DataFreescale implements IDataLayer {
 				}
 			}
 		}
+
 	}
 
 	/**
@@ -1153,6 +1159,7 @@ public class DataFreescale implements IDataLayer {
 		if (getGal().getPropertiesManager().getDebugEnabled())
 			LOG.info("Extracted APSME_GET.Confirm: " + message.ToHexString());
 		String _Key = String.format("%02X", (short) (message.getArray()[4]) & 0xFF);
+
 		// Found APSME_GET-DATA.Confirm. Remove the lock
 		synchronized (getListLocker()) {
 			for (ParserLocker pl : getListLocker()) {
@@ -1786,109 +1793,114 @@ public class DataFreescale implements IDataLayer {
 	 * @param message
 	 */
 	private void apsdeDataConfirm(ByteArrayObject message) {
-		if (getGal().getPropertiesManager().getDebugEnabled())
-			LOG.info("Extracted APSDE-DATA.Confirm: " + message.ToHexString());
 
 		/* DestAddress + DestEndPoint + SourceEndPoint */
+		/* Marco Removed in order to increase the performance */
+
 		long destAddress = DataManipulation.toLong(message.getArray()[11], message.getArray()[10], message.getArray()[9], message.getArray()[8], message.getArray()[7], message.getArray()[6], message.getArray()[5], message.getArray()[4]);
 		short destEndPoint = ((short) (message.getArray()[12] & 0xFF));
 		short sourceEndPoint = ((short) (message.getArray()[13] & 0xFF));
 		String Key = String.format("%016X", destAddress) + String.format("%02X", destEndPoint) + String.format("%02X", sourceEndPoint);
-
+		ParserLocker pl = new ParserLocker();
 		// Found APSDE-DATA.Confirm. Remove the lock
-		synchronized (getListLocker()) {
-			for (ParserLocker pl : getListLocker()) {
+		// synchronized (getListLocker()) {
+		// for (ParserLocker pl : getListLocker()) {
 
-				if ((pl.getType() == TypeMessage.APS) && (pl.getStatus().getCode() == ParserLocker.INVALID_ID) && (pl.get_Key().equalsIgnoreCase(Key))) {
+		// if ((pl.getType() == TypeMessage.APS) && (pl.getStatus().getCode() ==
+		// ParserLocker.INVALID_ID) && (pl.get_Key().equalsIgnoreCase(Key))) {
 
-					pl.getStatus().setCode((short) (message.getArray()[14] & 0xFF));
-					switch (pl.getStatus().getCode()) {
-					case 0x00:
-						pl.getStatus().setMessage("gSuccess (Success)");
-						break;
-					case 0x05:
-						pl.getStatus().setMessage("gPartialSuccess (Partial Success)");
-						break;
-					case 0x07:
-						pl.getStatus().setMessage("gSecurity_Fail (Security fail)");
-						break;
-					case 0x0A:
-						pl.getStatus().setMessage("gApsInvalidParameter_c (Security fail)");
-						break;
-					case 0x04:
-						pl.getStatus().setMessage("gZbNotOnNetwork_c (Transmitted the data frame)");
-						break;
-					case 0x01:
-						pl.getStatus().setMessage("gApsIllegalDevice_c (Transmitted the data frame)");
-						break;
-					case 0x02:
-						pl.getStatus().setMessage("gZbNoMem_c (Transmitted the data frame)");
-						break;
-					case 0xA0:
-						pl.getStatus().setMessage("gApsAsduTooLong_c (ASDU too long)");
-						break;
-					case 0xA3:
-						pl.getStatus().setMessage("gApsIllegalRequest_c (Invalid parameter)");
-						break;
-					case 0xA8:
-						pl.getStatus().setMessage("gNo_BoundDevice (No bound device)");
-						break;
-					case 0xA9:
-						pl.getStatus().setMessage("gNo_ShortAddress (No Short Address)");
-						break;
-					case 0xAE:
-						pl.getStatus().setMessage("gApsTableFull_c (Aps Table Full)");
-						break;
-					case 0xC3:
-						pl.getStatus().setMessage("INVALID_REQUEST (Not a valid request)");
-						break;
-					case 0xCC:
-						pl.getStatus().setMessage("MAX_FRM_COUNTER (Frame counter has reached maximum value for outgoing frame)");
-						break;
-					case 0xCD:
-						pl.getStatus().setMessage("NO_KEY (Key not available)");
-						break;
-					case 0xCE:
-						pl.getStatus().setMessage("BAD_CCM_OUTPUT (Security engine produced erraneous output)");
-						break;
-					case 0xF1:
-						pl.getStatus().setMessage("TRANSACTION_OVERFLOW (Transaction Overflow)");
-						break;
-					case 0xF0:
-						pl.getStatus().setMessage("TRANSACTION_EXPIRED (Transaction Expired)");
-						break;
-					case 0xE1:
-						pl.getStatus().setMessage(" CHANNEL_ACCESS_FAILURE (Key not available)");
-						break;
-					case 0xE6:
-						pl.getStatus().setMessage("INVALID_GTS (Not valid GTS)");
-						break;
-					case 0xF3:
-						pl.getStatus().setMessage("UNAVAILABLE_KEY (Key not found)");
-						break;
-					case 0xE5:
-						pl.getStatus().setMessage("FRAME_TOO_LONG (Frame too long)");
-						break;
-					case 0xE4:
-						pl.getStatus().setMessage("FAILED_SECURITY_CHECK (Failed security check)");
-						break;
-					case 0xE8:
-						pl.getStatus().setMessage("INVALID_PARAMETER (Not valid parameter)");
-						break;
-					case 0xE9:
-						pl.getStatus().setMessage("NO_ACK (Acknowledgement was not received)");
-						break;
-					}
-					try {
-						if (pl.getObjectLocker().size() == 0)
-							pl.getObjectLocker().put((byte) 0);
-					} catch (InterruptedException e) {
-
-					}
-
-				}
-			}
+		pl.getStatus().setCode((short) (message.getArray()[14] & 0xFF));
+		switch (pl.getStatus().getCode()) {
+		case 0x00:
+			pl.getStatus().setMessage("gSuccess (Success)");
+			break;
+		case 0x05:
+			pl.getStatus().setMessage("gPartialSuccess (Partial Success)");
+			break;
+		case 0x07:
+			pl.getStatus().setMessage("gSecurity_Fail (Security fail)");
+			break;
+		case 0x0A:
+			pl.getStatus().setMessage("gApsInvalidParameter_c (Security fail)");
+			break;
+		case 0x04:
+			pl.getStatus().setMessage("gZbNotOnNetwork_c (Transmitted the data frame)");
+			break;
+		case 0x01:
+			pl.getStatus().setMessage("gApsIllegalDevice_c (Transmitted the data frame)");
+			break;
+		case 0x02:
+			pl.getStatus().setMessage("gZbNoMem_c (Transmitted the data frame)");
+			break;
+		case 0xA0:
+			pl.getStatus().setMessage("gApsAsduTooLong_c (ASDU too long)");
+			break;
+		case 0xA3:
+			pl.getStatus().setMessage("gApsIllegalRequest_c (Invalid parameter)");
+			break;
+		case 0xA8:
+			pl.getStatus().setMessage("gNo_BoundDevice (No bound device)");
+			break;
+		case 0xA9:
+			pl.getStatus().setMessage("gNo_ShortAddress (No Short Address)");
+			break;
+		case 0xAE:
+			pl.getStatus().setMessage("gApsTableFull_c (Aps Table Full)");
+			break;
+		case 0xC3:
+			pl.getStatus().setMessage("INVALID_REQUEST (Not a valid request)");
+			break;
+		case 0xCC:
+			pl.getStatus().setMessage("MAX_FRM_COUNTER (Frame counter has reached maximum value for outgoing frame)");
+			break;
+		case 0xCD:
+			pl.getStatus().setMessage("NO_KEY (Key not available)");
+			break;
+		case 0xCE:
+			pl.getStatus().setMessage("BAD_CCM_OUTPUT (Security engine produced erraneous output)");
+			break;
+		case 0xF1:
+			pl.getStatus().setMessage("TRANSACTION_OVERFLOW (Transaction Overflow)");
+			break;
+		case 0xF0:
+			pl.getStatus().setMessage("TRANSACTION_EXPIRED (Transaction Expired)");
+			break;
+		case 0xE1:
+			pl.getStatus().setMessage(" CHANNEL_ACCESS_FAILURE (Key not available)");
+			break;
+		case 0xE6:
+			pl.getStatus().setMessage("INVALID_GTS (Not valid GTS)");
+			break;
+		case 0xF3:
+			pl.getStatus().setMessage("UNAVAILABLE_KEY (Key not found)");
+			break;
+		case 0xE5:
+			pl.getStatus().setMessage("FRAME_TOO_LONG (Frame too long)");
+			break;
+		case 0xE4:
+			pl.getStatus().setMessage("FAILED_SECURITY_CHECK (Failed security check)");
+			break;
+		case 0xE8:
+			pl.getStatus().setMessage("INVALID_PARAMETER (Not valid parameter)");
+			break;
+		case 0xE9:
+			pl.getStatus().setMessage("NO_ACK (Acknowledgement was not received)");
+			break;
 		}
+
+		if (getGal().getPropertiesManager().getDebugEnabled())
+			LOG.info("Extracted APSDE-DATA.Confirm: " + message.ToHexString() + " --- Status: " + pl.getStatus().getMessage() + " --- Key: " + Key);
+
+		// try {
+		// if (pl.getObjectLocker().size() == 0)
+		// pl.getObjectLocker().put((byte) 0);
+		// } catch (InterruptedException e) {
+
+		// }
+
+		// }
+		// }
+		// }
 	}
 
 	/**
@@ -2001,6 +2013,8 @@ public class DataFreescale implements IDataLayer {
 	 * @param message
 	 */
 	private void apsdeDataIndication(ByteArrayObject message) {
+		System.out.println("GAL-Received a apsdeDataIndication:" + message.ToHexString());
+		WrapperWSNNode node = null;
 		final APSMessageEvent messageEvent = new APSMessageEvent();
 		messageEvent.setDestinationAddressMode((long) (message.getArray()[3] & 0xFF));
 		BigInteger _ieee = null;
@@ -2079,30 +2093,10 @@ public class DataFreescale implements IDataLayer {
 		messageEvent.setProfileID(DataManipulation.toIntFromShort(message.getArray()[12], message.getArray()[11]));
 		messageEvent.setClusterID(DataManipulation.toIntFromShort(message.getArray()[14], message.getArray()[13]));
 
-		if ((getGal().getGatewayStatus() == GatewayStatus.GW_RUNNING) && getGal().get_GalNode() != null) {
-
-			if (!updateNodeIfExist(messageEvent, messageEvent.getSourceAddress()) /*
-																				 * ||
-																				 * !
-																				 * updateNodeIfExist
-																				 * (
-																				 * messageEvent
-																				 * ,
-																				 * messageEvent
-																				 * .
-																				 * getDestinationAddress
-																				 * (
-																				 * )
-																				 * )
-																				 */)
-				return;
-
-		} else
-			return;
-
 		int lastAsdu = 16 + message.getArray()[15] - 1;
 		messageEvent.setData(DataManipulation.subByteArray(message.getArray(), 16, lastAsdu));
 		messageEvent.setAPSStatus((message.getArray()[lastAsdu + 1] & 0xFF));
+		boolean wasBroadcast = ((message.getArray()[lastAsdu + 2] & 0xFF) == 0x01) ? true : false;
 		// ASK Jump WasBroadcast
 		// Security Status
 		switch ((short) (message.getArray()[lastAsdu + 3] & 0xFF)) {
@@ -2129,75 +2123,36 @@ public class DataFreescale implements IDataLayer {
 
 		if (getGal().getPropertiesManager().getDebugEnabled())
 			LOG.info("Extracted APSDE-DATA.Indication: " + message.ToHexString());
+		if ((getGal().getGatewayStatus() == GatewayStatus.GW_RUNNING) && getGal().get_GalNode() != null) {
 
-		if ((messageEvent.getSourceAddressMode() == GatewayConstants.ADDRESS_MODE_SHORT) && (messageEvent.getSourceAddress().getIeeeAddress() == null)) {
-			BigInteger _iee = null;
-			try {
-				_iee = getGal().getIeeeAddress_FromShortAddress(messageEvent.getSourceAddress().getNetworkAddress());
-			} catch (Exception e) {
-				if (!(messageEvent.getProfileID() == 0x0000 && (messageEvent.getClusterID() == 0x0013 || messageEvent.getClusterID() == 0x8034 || messageEvent.getClusterID() == 0x8001 || messageEvent.getClusterID() == 0x8031))) {
+			if (wasBroadcast) {
+				System.out.println("BROADCAST MESSAGE");
+			} else {
 
-					LOG.error("Message discarded Ieee source address not found, related ShortAddress:" + String.format("%04X", messageEvent.getSourceAddress().getNetworkAddress()) + " -- ProfileID: " + String.format("%04X", messageEvent.getProfileID()) + " -- ClusterID: " + String.format("%04X", messageEvent.getClusterID()));
+				if ((node = updateNodeIfExist(messageEvent, messageEvent.getSourceAddress())) == null)
+					return;
+
+				if (node != null)
+					synchronized (node) {
+						messageEvent.getSourceAddress().setIeeeAddress(BigInteger.valueOf(node.get_node().getAddress().getIeeeAddress().longValue()));
+						messageEvent.getSourceAddress().setNetworkAddress(new Integer(node.get_node().getAddress().getNetworkAddress()));
+					}
+				else
+					return;
+
+				if (messageEvent.getSourceAddress().getIeeeAddress() == null) {
+					LOG.error("Message discarded IEEE source address not found for Short address:" + String.format("%04X", messageEvent.getSourceAddress().getNetworkAddress()) + " -- ProfileID: " + String.format("%04X", messageEvent.getProfileID()) + " -- ClusterID: " + String.format("%04X", messageEvent.getClusterID()));
 					return;
 				}
-			}
 
-			messageEvent.getSourceAddress().setIeeeAddress(_iee);
-
-		}
-		if ((messageEvent.getSourceAddressMode() == GatewayConstants.EXTENDED_ADDRESS_MODE) && (messageEvent.getSourceAddress().getNetworkAddress() == null)) {
-
-			Integer _short = null;
-			try {
-				_short = getGal().getShortAddress_FromIeeeAddress(messageEvent.getSourceAddress().getIeeeAddress());
-			} catch (Exception e) {
-				if (!(messageEvent.getProfileID() == 0x0000 && (messageEvent.getClusterID() == 0x0013 || messageEvent.getClusterID() == 0x8034 || messageEvent.getClusterID() == 0x8001 || messageEvent.getClusterID() == 0x8031))) {
-
+				if (messageEvent.getSourceAddress().getNetworkAddress() == null) {
 					LOG.error("Message discarded short source address not found for Ieee address:" + String.format("%16X", messageEvent.getSourceAddress().getIeeeAddress()) + " -- ProfileID: " + String.format("%04X", messageEvent.getProfileID()) + " -- ClusterID: " + String.format("%04X", messageEvent.getClusterID()));
 					return;
 				}
+
 			}
-
-			messageEvent.getSourceAddress().setNetworkAddress(_short);
-
-		}
-
-		if ((messageEvent.getSourceAddressMode() == GatewayConstants.ADDRESS_MODE_SHORT) && (messageEvent.getSourceAddress().getIeeeAddress() == null)) {
-			BigInteger _iee = null;
-			try {
-				_iee = getGal().getIeeeAddress_FromShortAddress(messageEvent.getSourceAddress().getNetworkAddress());
-			} catch (Exception e) {
-				if (!(messageEvent.getProfileID() == 0x0000 && (messageEvent.getClusterID() == 0x0013 || messageEvent.getClusterID() == 0x8034 || messageEvent.getClusterID() == 0x8001 || messageEvent.getClusterID() == 0x8031))) {
-
-					LOG.error("Message discarded Ieee source address not found, related ShortAddress:" + String.format("%04X", messageEvent.getSourceAddress().getNetworkAddress()) + " -- ProfileID: " + String.format("%04X", messageEvent.getProfileID()) + " -- ClusterID: " + String.format("%04X", messageEvent.getClusterID()));
-					return;
-				}
-			}
-
-			messageEvent.getSourceAddress().setIeeeAddress(_iee);
-
-		}
-		if ((messageEvent.getSourceAddressMode() == GatewayConstants.EXTENDED_ADDRESS_MODE) && (messageEvent.getSourceAddress().getNetworkAddress() == null)) {
-
-			Integer _short = null;
-			try {
-				_short = getGal().getShortAddress_FromIeeeAddress(messageEvent.getSourceAddress().getIeeeAddress());
-			} catch (Exception e) {
-				if (!(messageEvent.getProfileID() == 0x0000 && (messageEvent.getClusterID() == 0x0013 || messageEvent.getClusterID() == 0x8034 || messageEvent.getClusterID() == 0x8001 || messageEvent.getClusterID() == 0x8031))) {
-
-					LOG.error("Message discarded short source address not found for Ieee address:" + String.format("%16X", messageEvent.getSourceAddress().getIeeeAddress()) + " -- ProfileID: " + String.format("%04X", messageEvent.getProfileID()) + " -- ClusterID: " + String.format("%04X", messageEvent.getClusterID()));
-					return;
-				}
-			}
-
-			messageEvent.getSourceAddress().setNetworkAddress(_short);
-
-		}
-
-		if (messageEvent.getSourceAddress().getIeeeAddress() == null) {
-			LOG.error("Message discarded short source address not found for Ieee address:" + String.format("%16X", messageEvent.getSourceAddress().getIeeeAddress()) + " -- ProfileID: " + String.format("%04X", messageEvent.getProfileID()) + " -- ClusterID: " + String.format("%04X", messageEvent.getClusterID()));
-		}
-
+		} else
+			return;
 		if (messageEvent.getProfileID().equals(0)) {/*
 													 * // profileid == 0 ZDO
 													 * Command
@@ -2283,17 +2238,14 @@ public class DataFreescale implements IDataLayer {
 	 * @param messageEvent
 	 * @param address
 	 */
-	private boolean updateNodeIfExist(final APSMessageEvent messageEvent, Address address) {
+	private WrapperWSNNode updateNodeIfExist(final APSMessageEvent messageEvent, Address address) {
 
 		WrapperWSNNode Wrapnode = new WrapperWSNNode(getGal(), String.format("%04X", address.getNetworkAddress()));
 		WSNNode node = new WSNNode();
 		node.setAddress(address);
 		Wrapnode.set_node(node);
-		synchronized (getGal().getNetworkcache()) {
-			/* Update Source Node Data */
-
-			if (getGal().getFromNetworkCache(Wrapnode) != null) {
-				Wrapnode = getGal().getFromNetworkCache(Wrapnode);
+		if ((Wrapnode = getGal().getFromNetworkCache(Wrapnode)) != null) {
+			synchronized (Wrapnode) {
 				if (Wrapnode.is_discoveryCompleted()) {
 
 					/* The node is already into the DB */
@@ -2309,156 +2261,164 @@ public class DataFreescale implements IDataLayer {
 					}
 
 				}
-			} else {
-				if (address.getNetworkAddress() != 0xFFFF) {
-					// 0x8034 is a LeaveAnnouncement, 0x0013 is a
-					// DeviceAnnouncement, 0x8001 is a IEEE_Addr_Rsp
+			}
 
-					if ((getGal().getPropertiesManager().getAutoDiscoveryUnknownNodes() > 0) && (!(messageEvent.getProfileID() == 0x0000 && (messageEvent.getClusterID() == 0x0013 || messageEvent.getClusterID() == 0x8034 || messageEvent.getClusterID() == 0x8001 || messageEvent.getClusterID() == 0x8031)))) {
+		} else {
 
-						if (address.getNetworkAddress().intValue() != getGal().get_GalNode().get_node().getAddress().getNetworkAddress().intValue()) {
+			if (address.getNetworkAddress() != 0xFFFF) {
+				// 0x8034 is a LeaveAnnouncement, 0x0013 is a
+				// DeviceAnnouncement, 0x8001 is a IEEE_Addr_Rsp
 
-							// Insert the node into
-							// cache,
-							// but with the
-							// discovery_completed flag
-							// a
-							// false
+				if ((getGal().getPropertiesManager().getAutoDiscoveryUnknownNodes() > 0) && (!(messageEvent.getProfileID() == 0x0000 && (messageEvent.getClusterID() == 0x0013 || messageEvent.getClusterID() == 0x8034 || messageEvent.getClusterID() == 0x8001 || messageEvent.getClusterID() == 0x8031)))) {
 
-							WrapperWSNNode o = new WrapperWSNNode(getGal(), String.format("%04X", address.getNetworkAddress()));
-							WSNNode _newNode = new WSNNode();
-							o.set_discoveryCompleted(false);
-							_newNode.setAddress(address);
-							o.set_node(_newNode);
-							if (getPropertiesManager().getDebugEnabled()) {
-								String shortAdd = (o.get_node().getAddress().getNetworkAddress() != null) ? String.format("%04X", o.get_node().getAddress().getNetworkAddress()) : "NULL";
-								String IeeeAdd = (o.get_node().getAddress().getIeeeAddress() != null) ? String.format("%08X", o.get_node().getAddress().getIeeeAddress()) : "NULL";
+					if (address.getNetworkAddress().intValue() != getGal().get_GalNode().get_node().getAddress().getNetworkAddress().intValue()) {
 
-								LOG.info("Adding node from [AutoDiscovery Nodes] into the NetworkCache IeeeAddress:" + IeeeAdd + " --- Short:" + shortAdd);
-							}
-							getGal().getNetworkcache().add(o);
+						// Insert the node into
+						// cache,
+						// but with the
+						// discovery_completed flag
+						// a
+						// false
 
-							Runnable thr = new MyRunnable(o) {
-								@Override
-								public void run() {
-									WrapperWSNNode _newWrapperNode = (WrapperWSNNode) this.getParameter();
-									if ((_newWrapperNode = getGal().getFromNetworkCache(_newWrapperNode)) != null) {
-										if (getGal().getPropertiesManager().getDebugEnabled()) {
-											LOG.info("AutoDiscoveryUnknownNodes procedure of Node:" + String.format("%04X", messageEvent.getSourceAddress().getNetworkAddress()));
-										}
+						WrapperWSNNode o = new WrapperWSNNode(getGal(), String.format("%04X", address.getNetworkAddress()));
+						WSNNode _newNode = new WSNNode();
+						o.set_discoveryCompleted(false);
+						_newNode.setAddress(address);
+						o.set_node(_newNode);
+						if (getPropertiesManager().getDebugEnabled()) {
+							String shortAdd = (o.get_node().getAddress().getNetworkAddress() != null) ? String.format("%04X", o.get_node().getAddress().getNetworkAddress()) : "NULL";
+							String IeeeAdd = (o.get_node().getAddress().getIeeeAddress() != null) ? String.format("%08X", o.get_node().getAddress().getIeeeAddress()) : "NULL";
 
-										/*
-										 * Reading the IEEEAddress of the new
-										 * node
-										 */
-										int counter = 0;
-										while ((_newWrapperNode.get_node().getAddress().getIeeeAddress() == null) && counter <= 30) {
-											try {
-												if (getGal().getPropertiesManager().getDebugEnabled())
-													LOG.info("AUTODISCOVERY:Sending IeeeReq to:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()));
-												BigInteger _iee = readExtAddress(INTERNAL_TIMEOUT, _newWrapperNode.get_node().getAddress().getNetworkAddress());
-												synchronized (_newWrapperNode) {
-													_newWrapperNode.get_node().getAddress().setIeeeAddress(_iee);
-												}
-												if (getGal().getPropertiesManager().getDebugEnabled()) {
-													LOG.info("Readed Ieee of the new node:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()) + " Ieee: " + _newWrapperNode.get_node().getAddress().getIeeeAddress().toString());
-												}
-											} catch (Exception e) {
-												LOG.error("Error reading Ieee of node:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()));
-												counter++;
+							LOG.info("Adding node from [AutoDiscovery Nodes] into the NetworkCache IeeeAddress:" + IeeeAdd + " --- Short:" + shortAdd);
+						}
+						getGal().getNetworkcache().add(o);
 
-											}
-										}
-										if (counter > 30) {
+						Runnable thr = new MyRunnable(o) {
+							@Override
+							public void run() {
+								WrapperWSNNode _newWrapperNode = (WrapperWSNNode) this.getParameter();
 
-											getGal().getNetworkcache().remove(_newWrapperNode);
+								if ((_newWrapperNode = getGal().getFromNetworkCache(_newWrapperNode)) != null) {
+									if (getGal().getPropertiesManager().getDebugEnabled()) {
+										LOG.info("AutoDiscoveryUnknownNodes procedure of Node:" + String.format("%04X", messageEvent.getSourceAddress().getNetworkAddress()));
+									}
 
-											return;
-
-										}
-
-										counter = 0;
-
-										while (_newWrapperNode.getNodeDescriptor() == null && counter <= 30) {
-											try {
-												if (getGal().getPropertiesManager().getDebugEnabled())
-													LOG.info("AUTODISCOVERY:Sending NodeDescriptorReq to:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()));
-
-												NodeDescriptor _desc = getNodeDescriptorSync(INTERNAL_TIMEOUT, _newWrapperNode.get_node().getAddress());
-
-												synchronized (_newWrapperNode) {
-													_newWrapperNode.setNodeDescriptor(_desc);
-													_newWrapperNode.get_node().setCapabilityInformation(_newWrapperNode.getNodeDescriptor().getMACCapabilityFlag());
-												}
-												if (getGal().getPropertiesManager().getDebugEnabled()) {
-													LOG.info("Readed NodeDescriptor of the new node:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()));
-
-												}
-											} catch (Exception e) {
-												LOG.error("Error reading Node Descriptor of node:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()));
-												counter++;
-
-											}
-										}
-
-										if (counter > 30) {
-											getGal().getNetworkcache().remove(_newWrapperNode);
-											return;
-
-										}
-										_newWrapperNode.reset_numberOfAttempt();
-
-										if (!_newWrapperNode.isSleepyOrEndDevice()) {
-											_newWrapperNode.set_discoveryCompleted(false);
-											if (getGal().getPropertiesManager().getKeepAliveThreshold() > 0) {
-												_newWrapperNode.setTimerFreshness(getGal().getPropertiesManager().getKeepAliveThreshold());
-											}
-											if (getGal().getPropertiesManager().getForcePingTimeout() > 0) {
-												/*
-												 * Starting immediately a
-												 * ForcePig in order to retrieve
-												 * the LQI informations on the
-												 * new node
-												 */
-												_newWrapperNode.setTimerForcePing(1);
-											}
-										} else {
-											_newWrapperNode.set_discoveryCompleted(true);
-											Status _st = new Status();
-											_st.setCode((short) GatewayConstants.SUCCESS);
-
+									/*
+									 * Reading the IEEEAddress of the new node
+									 */
+									int counter = 0;
+									while ((_newWrapperNode.get_node().getAddress().getIeeeAddress() == null) && counter <= NUMBEROFRETRY) {
+										try {
 											if (getGal().getPropertiesManager().getDebugEnabled())
-												LOG.info("Calling NodeDescovered  from AutodiscoveredNode Sleepy:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()));
-											System.out.println("\n\rNodeDiscovered From AutodiscoveredNode Sleepy:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()) + "\n\r");
-
-											try {
-												getGal().get_gatewayEventManager().nodeDiscovered(_st, _newWrapperNode.get_node());
-											} catch (Exception e) {
-												LOG.info("Error Calling NodeDescovered from AutodiscoveredNode Sleepy:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()) + " Error:" + e.getMessage());
-
+												LOG.info("AUTODISCOVERY:Sending IeeeReq to:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()));
+											BigInteger _iee = readExtAddress(INTERNAL_TIMEOUT, _newWrapperNode.get_node().getAddress().getNetworkAddress());
+											synchronized (_newWrapperNode) {
+												_newWrapperNode.get_node().getAddress().setIeeeAddress(_iee);
 											}
+											if (getGal().getPropertiesManager().getDebugEnabled()) {
+												LOG.info("Readed Ieee of the new node:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()) + " Ieee: " + _newWrapperNode.get_node().getAddress().getIeeeAddress().toString());
+											}
+										} catch (Exception e) {
+											LOG.error("Error reading Ieee of node:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()));
+											counter++;
+
 										}
-										/*
-										 * Saving the Panid in order to leave
-										 * the Philips light
-										 */
-										getGal().getManageMapPanId().setPanid(_newWrapperNode.get_node().getAddress().getIeeeAddress(), getGal().getNetworkPanID());
+									}
+									if (counter > NUMBEROFRETRY) {
+
+										getGal().getNetworkcache().remove(_newWrapperNode);
+
+										return;
 
 									}
-								}
-							};
 
-							Thread _thr0 = new Thread(thr);
-							_thr0.setName("Thread getAutoDiscoveryUnknownNodes:" + String.format("%04X", address.getNetworkAddress()));
-							_thr0.start();
-							return false;
-						}
+									counter = 0;
+
+									while (_newWrapperNode.getNodeDescriptor() == null && counter <= NUMBEROFRETRY) {
+										try {
+											if (getGal().getPropertiesManager().getDebugEnabled())
+												LOG.info("AUTODISCOVERY:Sending NodeDescriptorReq to:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()));
+
+											NodeDescriptor _desc = getNodeDescriptorSync(INTERNAL_TIMEOUT, _newWrapperNode.get_node().getAddress());
+
+											synchronized (_newWrapperNode) {
+												_newWrapperNode.setNodeDescriptor(_desc);
+												_newWrapperNode.get_node().setCapabilityInformation(_newWrapperNode.getNodeDescriptor().getMACCapabilityFlag());
+											}
+											if (getGal().getPropertiesManager().getDebugEnabled()) {
+												LOG.info("Readed NodeDescriptor of the new node:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()));
+
+											}
+										} catch (Exception e) {
+											LOG.error("Error reading Node Descriptor of node:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()));
+											counter++;
+
+										}
+									}
+
+									if (counter > NUMBEROFRETRY) {
+										getGal().getNetworkcache().remove(_newWrapperNode);
+										return;
+
+									}
+									synchronized (_newWrapperNode) {
+										_newWrapperNode.reset_numberOfAttempt();
+									}
+									if (!_newWrapperNode.isSleepyOrEndDevice()) {
+										synchronized (_newWrapperNode) {
+											_newWrapperNode.set_discoveryCompleted(false);
+										}
+										if (getGal().getPropertiesManager().getKeepAliveThreshold() > 0) {
+											_newWrapperNode.setTimerFreshness(getGal().getPropertiesManager().getKeepAliveThreshold());
+										}
+										if (getGal().getPropertiesManager().getForcePingTimeout() > 0) {
+											/*
+											 * Starting immediately a ForcePig
+											 * in order to retrieve the LQI
+											 * informations on the new node
+											 */
+											_newWrapperNode.setTimerForcePing(1);
+										}
+									} else {
+										synchronized (_newWrapperNode) {
+											_newWrapperNode.set_discoveryCompleted(true);
+										}
+										Status _st = new Status();
+										_st.setCode((short) GatewayConstants.SUCCESS);
+
+										if (getGal().getPropertiesManager().getDebugEnabled())
+											LOG.info("Calling NodeDescovered  from AutodiscoveredNode Sleepy:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()));
+										System.out.println("\n\rNodeDiscovered From AutodiscoveredNode Sleepy:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()) + "\n\r");
+
+										try {
+											getGal().get_gatewayEventManager().nodeDiscovered(_st, _newWrapperNode.get_node());
+										} catch (Exception e) {
+											LOG.info("Error Calling NodeDescovered from AutodiscoveredNode Sleepy:" + String.format("%04X", _newWrapperNode.get_node().getAddress().getNetworkAddress()) + " Error:" + e.getMessage());
+
+										}
+									}
+									/*
+									 * Saving the Panid in order to leave the
+									 * Philips light
+									 */
+									getGal().getManageMapPanId().setPanid(_newWrapperNode.get_node().getAddress().getIeeeAddress(), getGal().getNetworkPanID());
+
+								}
+
+							}
+						};
+
+						Thread _thr0 = new Thread(thr);
+						_thr0.setName("Thread getAutoDiscoveryUnknownNodes:" + String.format("%04X", address.getNetworkAddress()));
+						_thr0.start();
+						return null;
 					}
 				}
 			}
-		}
-		return true;
 
+		}
+
+		return Wrapnode;
 	}
 
 	private Status makeStatusObject(String message, short code) {
@@ -2690,8 +2650,8 @@ public class DataFreescale implements IDataLayer {
 		if (getGal().getPropertiesManager().getDebugEnabled()) {
 			LOG.info("Data_FreeScale.send_aps");
 		}
-		ParserLocker lock = new ParserLocker();
-		lock.setType(TypeMessage.APS);
+		// ParserLocker lock = new ParserLocker();
+		// lock.setType(TypeMessage.APS);
 		/* DestAddress + DestEndPoint + SourceEndPoint */
 		BigInteger _DSTAdd = null;
 		if ((message.getDestinationAddressMode() == GatewayConstants.EXTENDED_ADDRESS_MODE))
@@ -2701,54 +2661,54 @@ public class DataFreescale implements IDataLayer {
 		else if (((message.getDestinationAddressMode() == GatewayConstants.ADDRESS_MODE_ALIAS)))
 			throw new Exception("The DestinationAddressMode == ADDRESS_MODE_ALIAS is not implemented!!");
 		if (_DSTAdd != null) {
-			String _key = String.format("%016X", _DSTAdd.longValue()) + String.format("%02X", message.getDestinationEndpoint()) + String.format("%02X", message.getSourceEndpoint());
-			lock.set_Key(_key);
+			// String _key = String.format("%016X", _DSTAdd.longValue()) +
+			// String.format("%02X", message.getDestinationEndpoint()) +
+			// String.format("%02X", message.getSourceEndpoint());
+			// lock.set_Key(_key);
 			Status status = new Status();
-			getListLocker().add(lock);
+			// getListLocker().add(lock);
 			SendRs232Data(makeByteArrayFromApsMessage(message));
-			if (lock.getStatus().getCode() == ParserLocker.INVALID_ID)
-				lock.getObjectLocker().poll(timeout, TimeUnit.MILLISECONDS);
-			status = lock.getStatus();
+			/*
+			 * if (lock.getStatus().getCode() == ParserLocker.INVALID_ID)
+			 * lock.getObjectLocker().poll(timeout, TimeUnit.MILLISECONDS);
+			 * status = lock.getStatus();
+			 * 
+			 * if (getListLocker().contains(lock)) getListLocker().remove(lock);
+			 * 
+			 * if (status.getCode() == ParserLocker.INVALID_ID) {
+			 * 
+			 * LOG.error("Timeout expired in send aps message");
+			 * 
+			 * throw new GatewayException(
+			 * "Timeout expired in send aps message. No Confirm Received."); }
+			 * else { if (status.getCode() != 0) {
+			 * LOG.error("Send aps returned Status: " + status.getCode()); //
+			 * CHECK if node is a sleepy end device WrapperWSNNode Wrapnode =
+			 * new WrapperWSNNode(getGal(), String.format("%04X",
+			 * _DSTAdd.intValue())); WSNNode node = new WSNNode();
+			 * node.setAddress(message.getDestinationAddress());
+			 * Wrapnode.set_node(node); Wrapnode =
+			 * getGal().getFromNetworkCache(Wrapnode); if (Wrapnode != null) {
+			 * if (Wrapnode.isSleepyOrEndDevice()) { if (status.getCode() ==
+			 * 0xA7) return status; else throw new GatewayException(
+			 * "Error on  APSDE-DATA.Request.Request. The destination node is Unreachable:"
+			 * + String.format("%02X", status.getCode()) + " Status Message: " +
+			 * status.getMessage()); } else { if (status.getCode() == 0xD1) { //
+			 * No route entry, check connections Wrapnode.setTimerForcePing(1);
+			 * return status; } else throw new
+			 * GatewayException("Error on  APSDE-DATA.Request.Request. Status code:"
+			 * + String.format("%02X", status.getCode()) + " Status Message: " +
+			 * status.getMessage()); }
+			 * 
+			 * } else { throw new GatewayException(
+			 * "Error on APSDE-DATA.Request.Request. The destination node is Unknown"
+			 * );
+			 * 
+			 * } } else return status; }
+			 */
+			status.setCode((short) GatewayConstants.SUCCESS);
+			return status;
 
-			if (getListLocker().contains(lock))
-				getListLocker().remove(lock);
-
-			if (status.getCode() == ParserLocker.INVALID_ID) {
-
-				LOG.error("Timeout expired in send aps message");
-
-				throw new GatewayException("Timeout expired in send aps message. No Confirm Received.");
-			} else {
-				if (status.getCode() != 0) {
-					LOG.error("Send aps returned Status: " + status.getCode());
-					// CHECK if node is a sleepy end device
-					WrapperWSNNode Wrapnode = new WrapperWSNNode(getGal(), String.format("%04X", _DSTAdd.intValue()));
-					WSNNode node = new WSNNode();
-					node.setAddress(message.getDestinationAddress());
-					Wrapnode.set_node(node);
-					Wrapnode = getGal().getFromNetworkCache(Wrapnode);
-					if (Wrapnode != null) {
-						if (Wrapnode.isSleepyOrEndDevice()) {
-							if (status.getCode() == 0xA7)
-								return status;
-							else
-								throw new GatewayException("Error on  APSDE-DATA.Request.Request. The destination node is Unreachable:" + String.format("%02X", status.getCode()) + " Status Message: " + status.getMessage());
-						} else {
-							if (status.getCode() == 0xD1) {
-								// No route entry, check connections
-								Wrapnode.setTimerForcePing(1);
-								return status;
-							} else
-								throw new GatewayException("Error on  APSDE-DATA.Request.Request. Status code:" + String.format("%02X", status.getCode()) + " Status Message: " + status.getMessage());
-						}
-
-					} else {
-						throw new GatewayException("Error on APSDE-DATA.Request.Request. The destination node is Unknown");
-
-					}
-				} else
-					return status;
-			}
 		} else {
 			throw new GatewayException("Error on APSDE-DATA.Request.Request. Destination address is null");
 
@@ -3533,8 +3493,7 @@ public class DataFreescale implements IDataLayer {
 
 		SendRs232Data(_res);
 
-		
-		/*In order to skip error during these commands*/
+		/* In order to skip error during these commands */
 		try {
 			Status _st0 = ClearDeviceKeyPairSet(timeout, addrOfInterest);
 		} catch (Exception e) {
@@ -3545,7 +3504,7 @@ public class DataFreescale implements IDataLayer {
 		} catch (Exception e) {
 		}
 
-		/*Always success to up layers*/
+		/* Always success to up layers */
 		Status status = new Status();
 		status.setCode((short) GatewayConstants.SUCCESS);
 
@@ -3695,7 +3654,7 @@ public class DataFreescale implements IDataLayer {
 	@Override
 	public void clearBuffer() {
 		try {
-			getDataFromSerialComm().put(new ByteArrayObject(true));
+			getDataFromSerialComm().put(new ByteArrayObject(null, 0));
 		} catch (InterruptedException e) {
 
 		}
