@@ -45,6 +45,7 @@ public class M2MDeviceConfigObject implements M2MDeviceConfig {
 	private static final String DEVICE_ID_PROPERTY_KEY = "deviceId";
 	private static final String DEVICE_TOKEN_PROPERTY_KEY = "deviceToken";
 	private static final String CONNECTION_RETRY_TIMEOUT_PROPERTY_KEY = "connectionRetryTimeout";
+	private static final String USE_HTTPS_PROTOCOL_PROPERTY_KEY = "useHttpsProtocol";
 
 	private static String configFilePath = null;
 	private static Properties DEFAULT_CONFIG_PROPERTIES = new Properties();
@@ -56,6 +57,7 @@ public class M2MDeviceConfigObject implements M2MDeviceConfig {
 		DEFAULT_CONFIG_PROPERTIES.setProperty(SERVER_PORT_PROPERTY_KEY, "8080");
 		DEFAULT_CONFIG_PROPERTIES.setProperty(CONNECTION_RETRY_TIMEOUT_PROPERTY_KEY, "60000");
 		DEFAULT_CONFIG_PROPERTIES.setProperty(DEVICE_ID_PROPERTY_KEY, UUID.randomUUID().toString());
+		DEFAULT_CONFIG_PROPERTIES.setProperty(USE_HTTPS_PROTOCOL_PROPERTY_KEY,"false");
 
 		String encKey = null;
 		try {
@@ -132,6 +134,7 @@ public class M2MDeviceConfigObject implements M2MDeviceConfig {
 		initConfigProperty(SERVER_ADDRESS_PROPERTY_KEY);
 		initConfigProperty(SERVER_PORT_PROPERTY_KEY);
 		initConfigProperty(CONNECTION_RETRY_TIMEOUT_PROPERTY_KEY);
+		initConfigProperty(USE_HTTPS_PROTOCOL_PROPERTY_KEY);
 	}
 
 	private static synchronized boolean deleteFileAndResetConfigProperties() {
@@ -154,6 +157,7 @@ public class M2MDeviceConfigObject implements M2MDeviceConfig {
 		initConfigProperty(SERVER_ADDRESS_PROPERTY_KEY);
 		initConfigProperty(SERVER_PORT_PROPERTY_KEY);
 		initConfigProperty(CONNECTION_RETRY_TIMEOUT_PROPERTY_KEY);
+		initConfigProperty(USE_HTTPS_PROTOCOL_PROPERTY_KEY);
 		return result;
 	}
 
@@ -194,9 +198,15 @@ public class M2MDeviceConfigObject implements M2MDeviceConfig {
 	private String networkSclBaseToken;
 
 	private long connectionRetryTimeout;
-
+	
+	private boolean useHttpsProtocol;
+	
+	private String getProtocolPrefix() {
+		return (this.useHttpsProtocol)? M2MConstants.URL_HTTPS_PREFIX : M2MConstants.URL_HTTP_PREFIX; 
+	}
+	
 	private void updateBaseUri() {
-		this.baseUri = M2MConstants.URL_HTTP_PREFIX + serverAddress + M2MConstants.URL_PORT_PREFIX + serverPort;
+		this.baseUri = getProtocolPrefix() + serverAddress + M2MConstants.URL_PORT_PREFIX + serverPort;
 	}
 
 	public M2MDeviceConfigObject() {
@@ -205,6 +215,7 @@ public class M2MDeviceConfigObject implements M2MDeviceConfig {
 		deviceId = configProperties.getProperty(DEVICE_ID_PROPERTY_KEY);
 		deviceToken = configProperties.getProperty(DEVICE_TOKEN_PROPERTY_KEY);
 		connectionRetryTimeout = Long.parseLong(configProperties.getProperty(CONNECTION_RETRY_TIMEOUT_PROPERTY_KEY));
+		useHttpsProtocol = Boolean.parseBoolean(configProperties.getProperty(USE_HTTPS_PROTOCOL_PROPERTY_KEY));
 		updateBaseUri();
 	}
 
@@ -274,6 +285,7 @@ public class M2MDeviceConfigObject implements M2MDeviceConfig {
 		p.setProperty(DEVICE_ID_PROPERTY_KEY, deviceId == null ? "" : deviceId);
 		p.setProperty(DEVICE_TOKEN_PROPERTY_KEY, (isNullOrEmpty(deviceToken)) ? "" : deviceToken);
 		p.setProperty(CONNECTION_RETRY_TIMEOUT_PROPERTY_KEY, Long.toString(connectionRetryTimeout));
+		p.setProperty(USE_HTTPS_PROTOCOL_PROPERTY_KEY, Boolean.toString(useHttpsProtocol));
 		return p;
 	}
 
@@ -318,7 +330,16 @@ public class M2MDeviceConfigObject implements M2MDeviceConfig {
 	public void setConnectionRetryTimeout(long connectionRetryTimeout) {
 		this.connectionRetryTimeout = connectionRetryTimeout;
 	}
-
+	
+	public void setUseHttpsProtocol(boolean useHttpsProtocol) {
+		this.useHttpsProtocol = useHttpsProtocol;
+		updateBaseUri();
+	}
+	
+	public boolean isUsedHttpsProtocol() {
+		return useHttpsProtocol;
+	}
+	
 	private static final boolean isNullOrEmpty(String s) {
 		return (s == null || (s.length() == 0));
 	}

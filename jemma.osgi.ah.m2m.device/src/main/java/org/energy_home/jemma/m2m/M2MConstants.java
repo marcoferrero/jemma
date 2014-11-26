@@ -33,6 +33,7 @@ public abstract class M2MConstants {
 	public static final String LOCAL_ONLY_DEVICE_ID = "local";
 	
 	public static final String URL_HTTP_PREFIX = "http://";
+	public static final String URL_HTTPS_PREFIX = "https://";
 	public static final String URL_PORT_PREFIX = ":";
 	public static final String URL_SLASH = "/";
 	public static final String URL_CONNECTION_BASE = "/HAP/CONNECTION";
